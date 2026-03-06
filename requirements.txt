@@ -1,0 +1,5 @@
+streamlit
+PyMuPDF
+sentence-transformers
+faiss-cpu
+tiktoken
