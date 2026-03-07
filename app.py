@@ -159,3 +159,8 @@ def translate_text(text, target_language):
     except Exception as e:
         st.error(f"Translation failed: {str(e)}")
         return text
+
+# Streamlit UI Header
+st.title("📄 RAG Explorer: AI-Powered Document Assistant & Translator")
+st.markdown("Upload a document and ask questions to get AI-powered answers with translation capabilities.")
+
