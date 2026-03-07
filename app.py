@@ -40,8 +40,6 @@ def get_api_key():
         st.error("GROQ_API_KEY environment variable is not set. Please set it before running the application.")
     return api_key
 
-# --- NEW CONTENT STARTING HERE ---
-
 @st.cache_resource
 def load_embedder():
     # Load the local embedding model
@@ -77,3 +75,14 @@ def chunk_text(text, max_tokens=250):
     if current_chunk:
         result_chunks.append(". ".join(current_chunk) + ("." if not current_chunk[-1].endswith(".") else ""))
     return result_chunks
+
+# --- NEW CONTENT STARTING HERE ---
+
+def extract_text_from_pdf(pdf_file):
+    """Extracts raw text from an uploaded PDF file."""
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
+
