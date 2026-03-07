@@ -120,3 +120,45 @@ Context:
 Question:
 {question}
 Answer: Please provide a comprehensive answer based only on the context provided."""
+
+def generate_answer(prompt):
+    """Sends the prompt to the Groq API and returns the generated answer."""
+    api_key = get_api_key()
+    if not api_key:
+        return "API key is missing. Please set the GROQ_API_KEY environment variable or enter it in the sidebar."
+    headers = {
+        "Authorization": f"Bearer {api_key.strip()}",
+        "Content-Type": "application/json"
+    }
+    selected_model = st.session_state.get("MODEL_CHOICE", "llama-3.1-8b-instant")
+    payload = {
+        "model": selected_model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful document assistant that answers questions only using the provided context."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 1024
+    }
+    try:
+        start_time = time.time()
+        with st.spinner("Sending request to Groq API..."):
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+        query_time = time.time() - start_time
+        st.session_state.last_query_time = f"{query_time:.2f} seconds"
+
+        if response.status_code == 401:
+            return "Authentication failed: Invalid or expired API key."
+        
+        response.raise_for_status()
+        response_json = response.json()
+        answer = response_json["choices"][0]["message"]["content"]
+        st.session_state.last_response = answer
+        return answer
+    except Exception as e:
+        return f"Unexpected error: {str(e)}"
