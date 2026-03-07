@@ -164,3 +164,21 @@ def translate_text(text, target_language):
 st.title("📄 RAG Explorer: AI-Powered Document Assistant & Translator")
 st.markdown("Upload a document and ask questions to get AI-powered answers with translation capabilities.")
 
+# Sidebar for configuration
+with st.sidebar:    
+    st.subheader("Model Selection")
+    model_choice = st.selectbox(
+        "Select LLM Model",
+        ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
+        help="Choose the Groq model to use for answering questions"
+    )
+    st.session_state["MODEL_CHOICE"] = model_choice
+    
+    if st.session_state.last_query_time:
+         st.subheader("About")
+         st.markdown("""
+         This app uses Retrieval-Augmented Generation (RAG) to answer questions about uploaded documents.
+         1. Upload a document
+         2. Ask a question
+         3. Translate responses to other languages
+         """)
