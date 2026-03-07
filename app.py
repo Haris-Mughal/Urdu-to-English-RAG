@@ -86,3 +86,19 @@ def extract_text_from_pdf(pdf_file):
         text += page.get_text()
     return text
 
+def index_uploaded_text(text):
+    """Chunks text, encodes it into vectors, and adds it to the FAISS index."""
+    global index
+    index = faiss.IndexFlatL2(embedding_dim)
+    st.session_state.chunks = []
+    st.session_state.chunk_sources = []
+
+    chunks_list = chunk_text(text)
+    st.session_state.chunks = chunks_list
+
+    for i, chunk in enumerate(chunks_list):
+        st.session_state.chunk_sources.append(f"Chunk {i+1}: {chunk[:50]}...")
+        vector = embedder.encode([chunk])[0]
+        index.add(np.array([vector]).astype('float32'))
+
+    return len(chunks_list)
