@@ -37,7 +37,7 @@ for key, default in {
 def get_api_key():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        st.error("GROQ_API_KEY environment variable is not set. Please set it before running the application.")
+        st.error("GROQ_API_KEY environment variable is not set.")
     return api_key
 
 @st.cache_resource
@@ -120,7 +120,9 @@ def generate_answer(prompt):
         "max_tokens": 1024
     }
     try:
+        start_time = time.time()
         response = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+        st.session_state.last_query_time = f"{time.time() - start_time:.2f} seconds"
         response.raise_for_status()
         answer = response.json()["choices"][0]["message"]["content"]
         st.session_state.last_response = answer
@@ -142,42 +144,46 @@ st.markdown("Upload a document and ask questions.")
 with st.sidebar:    
     st.subheader("Model Selection")
     st.session_state["MODEL_CHOICE"] = st.selectbox("Select LLM Model", ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"])
-
-# --- NEW CONTENT STARTING HERE ---
+    if st.session_state.last_query_time:
+         st.subheader("About")
+         st.markdown("This app uses RAG to answer questions about documents.")
 
 col1, col2 = st.columns([2, 1])
-
 with col1:
     uploaded_file = st.file_uploader("Upload a PDF or TXT file", type=["pdf", "txt"])
     if uploaded_file:
-        with st.spinner("Reading and indexing document..."):
-            raw_text = ""
-            if uploaded_file.type == "application/pdf":
-                raw_text = extract_text_from_pdf(uploaded_file)
-            elif uploaded_file.type == "text/plain":
-                raw_text = uploaded_file.read().decode("utf-8")
-                
-            total_chunks = index_uploaded_text(raw_text)
-            st.success(f"Document indexed successfully! Created {total_chunks} chunks.")
-            
-            with st.expander("Document Preview"):          
-                st.subheader("Key Points")
-                sentences = raw_text.split('. ')
-                key_points = []
-                
-                for sentence in sentences[:50]:
-                    sentence = sentence.strip()
-                    if 15 < len(sentence) < 200: 
-                        important_keywords = ["important", "key", "significant", "main", "primary", "essential"]
-                        if any(kw in sentence.lower() for kw in important_keywords) or sentence.endswith(':'):
-                            key_points.append(sentence)
-                
-                if len(key_points) < 3:
-                    key_points = [s.strip() for s in sentences[:50:10] if len(s.strip()) > 15][:5]
-                
-                for point in key_points[:5]: 
-                    st.markdown(f"• {point}")
+        raw_text = extract_text_from_pdf(uploaded_file) if uploaded_file.type == "application/pdf" else uploaded_file.read().decode("utf-8")
+        index_uploaded_text(raw_text)
+        st.success("Indexed successfully!")
 
-with col2:
-    if st.session_state.chunks:
-        st.info(f"Document chunks: {len(st.session_state.chunks)}")
+# --- NEW CONTENT STARTING HERE ---
+
+st.divider()
+query = st.text_input("Ask a question about the document")
+
+c1, c2 = st.columns([1, 1])
+with c1:
+    use_local = st.checkbox("Use local processing (no API call)", value=False)
+with c2:
+    language = st.selectbox("Language", ["English", "Urdu"])
+    lang_code = "en" if language == "English" else "ur"
+
+if st.button("Get Answer", type="primary") and query:
+    if index.ntotal == 0:
+        st.warning("Please upload a document first.")
+    else:
+        with st.spinner("Generating..."):
+            top_chunks = retrieve_chunks(query)
+            if not top_chunks:
+                st.error("No relevant content found.")
+            else:
+                if use_local:
+                    answer = f"Local relevant passages:\n\n" + "\n\n".join(top_chunks[:3])
+                else:
+                    prompt = build_prompt("Use context only.", top_chunks, query)
+                    answer = generate_answer(prompt)
+                
+                translated = translate_text(answer, lang_code)
+                st.markdown(f"### Answer ({language}):")
+                st.write(translated)                            
+
