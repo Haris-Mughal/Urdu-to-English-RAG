@@ -12,7 +12,7 @@ from deep_translator import GoogleTranslator
 from gtts import gTTS
 import time
 
-# Load environment variables (like API keys)
+# Load environment variables
 load_dotenv()
 
 # Basic Streamlit Page Configuration
@@ -23,7 +23,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Initialize Session State for storing data across reruns
+# Initialize Session State
 for key, default in {
     "chunks": [],
     "chunk_sources": [],
@@ -65,7 +65,7 @@ def chunk_text(text, max_tokens=250):
             if current_chunk:
                 result_chunks.append(". ".join(current_chunk) + ("." if not current_chunk[-1].endswith(".") else ""))
             current_chunk = [sentence]
-            total_tokens = total_tokens
+            total_tokens = token_len
         else:
             current_chunk.append(sentence)
             total_tokens += token_len
@@ -85,15 +85,12 @@ def index_uploaded_text(text):
     index = faiss.IndexFlatL2(embedding_dim)
     st.session_state.chunks = []
     st.session_state.chunk_sources = []
-
     chunks_list = chunk_text(text)
     st.session_state.chunks = chunks_list
-
     for i, chunk in enumerate(chunks_list):
         st.session_state.chunk_sources.append(f"Chunk {i+1}: {chunk[:50]}...")
         vector = embedder.encode([chunk])[0]
         index.add(np.array([vector]).astype('float32'))
-
     return len(chunks_list)
 
 def retrieve_chunks(query, top_k=5):
@@ -105,80 +102,82 @@ def retrieve_chunks(query, top_k=5):
 
 def build_prompt(system_prompt, context_chunks, question):
     context = "\n\n".join(context_chunks)
-    return f"""{system_prompt}
-Context:
-{context}
-Question:
-{question}
-Answer: Please provide a comprehensive answer based only on the context provided."""
+    return f"{system_prompt}\n\nContext:\n{context}\n\nQuestion:\n{question}\n\nAnswer: Please provide a comprehensive answer based only on the context provided."
 
 def generate_answer(prompt):
     api_key = get_api_key()
     if not api_key:
-        return "API key is missing. Please set the GROQ_API_KEY environment variable or enter it in the sidebar."
-    headers = {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
+        return "API key error."
+    headers = {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
     selected_model = st.session_state.get("MODEL_CHOICE", "llama-3.1-8b-instant")
     payload = {
         "model": selected_model,
         "messages": [
-            {"role": "system", "content": "You are a helpful document assistant that answers questions only using the provided context."},
+            {"role": "system", "content": "You are a helpful document assistant."},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.3,
         "max_tokens": 1024
     }
     try:
-        start_time = time.time()
-        with st.spinner("Sending request to Groq API..."):
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                json=payload,
-                headers=headers,
-                timeout=30
-            )
-        query_time = time.time() - start_time
-        st.session_state.last_query_time = f"{query_time:.2f} seconds"
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
         response.raise_for_status()
-        response_json = response.json()
-        answer = response_json["choices"][0]["message"]["content"]
+        answer = response.json()["choices"][0]["message"]["content"]
         st.session_state.last_response = answer
         return answer
     except Exception as e:
-        return f"Unexpected error: {str(e)}"
+        return f"Error: {str(e)}"
+
+def translate_text(text, target_language):
+    try:
+        return GoogleTranslator(source='auto', target=target_language).translate(text)
+    except Exception:
+        return text
+
+# UI Header
+st.title("📄 RAG Explorer: AI-Powered Document Assistant & Translator")
+st.markdown("Upload a document and ask questions.")
+
+# Sidebar
+with st.sidebar:    
+    st.subheader("Model Selection")
+    st.session_state["MODEL_CHOICE"] = st.selectbox("Select LLM Model", ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"])
 
 # --- NEW CONTENT STARTING HERE ---
 
-def translate_text(text, target_language):
-    """Translates text using Google Translator."""
-    try:
-        with st.spinner(f"Translating to {target_language}..."):
-            return GoogleTranslator(source='auto', target=target_language).translate(text)
-    except Exception as e:
-        st.error(f"Translation failed: {str(e)}")
-        return text
+col1, col2 = st.columns([2, 1])
 
-# Streamlit UI Header
-st.title("📄 RAG Explorer: AI-Powered Document Assistant & Translator")
-st.markdown("Upload a document and ask questions to get AI-powered answers with translation capabilities.")
+with col1:
+    uploaded_file = st.file_uploader("Upload a PDF or TXT file", type=["pdf", "txt"])
+    if uploaded_file:
+        with st.spinner("Reading and indexing document..."):
+            raw_text = ""
+            if uploaded_file.type == "application/pdf":
+                raw_text = extract_text_from_pdf(uploaded_file)
+            elif uploaded_file.type == "text/plain":
+                raw_text = uploaded_file.read().decode("utf-8")
+                
+            total_chunks = index_uploaded_text(raw_text)
+            st.success(f"Document indexed successfully! Created {total_chunks} chunks.")
+            
+            with st.expander("Document Preview"):          
+                st.subheader("Key Points")
+                sentences = raw_text.split('. ')
+                key_points = []
+                
+                for sentence in sentences[:50]:
+                    sentence = sentence.strip()
+                    if 15 < len(sentence) < 200: 
+                        important_keywords = ["important", "key", "significant", "main", "primary", "essential"]
+                        if any(kw in sentence.lower() for kw in important_keywords) or sentence.endswith(':'):
+                            key_points.append(sentence)
+                
+                if len(key_points) < 3:
+                    key_points = [s.strip() for s in sentences[:50:10] if len(s.strip()) > 15][:5]
+                
+                for point in key_points[:5]: 
+                    st.markdown(f"• {point}")
 
-# Sidebar for configuration
-with st.sidebar:    
-    st.subheader("Model Selection")
-    model_choice = st.selectbox(
-        "Select LLM Model",
-        ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"],
-        help="Choose the Groq model to use for answering questions"
-    )
-    st.session_state["MODEL_CHOICE"] = model_choice
-    
-    if st.session_state.last_query_time:
-         st.subheader("About")
-         st.markdown("""
-         This app uses Retrieval-Augmented Generation (RAG) to answer questions about uploaded documents.
-         1. Upload a document
-         2. Ask a question
-         3. Translate responses to other languages
-         """)
+with col2:
+    if st.session_state.chunks:
+        st.info(f"Document chunks: {len(st.session_state.chunks)}")
