@@ -110,3 +110,13 @@ def retrieve_chunks(query, top_k=5):
     q_vector = embedder.encode([query])
     D, I = index.search(np.array(q_vector).astype('float32'), k=min(top_k, index.ntotal))
     return [st.session_state.chunks[i] for i in I[0] if i < len(st.session_state.chunks)]
+
+def build_prompt(system_prompt, context_chunks, question):
+    """Combines context and question into a single prompt for the LLM."""
+    context = "\n\n".join(context_chunks)
+    return f"""{system_prompt}
+Context:
+{context}
+Question:
+{question}
+Answer: Please provide a comprehensive answer based only on the context provided."""
