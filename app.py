@@ -76,8 +76,6 @@ def chunk_text(text, max_tokens=250):
         result_chunks.append(". ".join(current_chunk) + ("." if not current_chunk[-1].endswith(".") else ""))
     return result_chunks
 
-# --- NEW CONTENT STARTING HERE ---
-
 def extract_text_from_pdf(pdf_file):
     """Extracts raw text from an uploaded PDF file."""
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
@@ -102,3 +100,13 @@ def index_uploaded_text(text):
         index.add(np.array([vector]).astype('float32'))
 
     return len(chunks_list)
+
+# --- NEW CONTENT STARTING HERE ---
+
+def retrieve_chunks(query, top_k=5):
+    """Retrieves the most relevant text chunks for a given query."""
+    if index.ntotal == 0:
+        return []
+    q_vector = embedder.encode([query])
+    D, I = index.search(np.array(q_vector).astype('float32'), k=min(top_k, index.ntotal))
+    return [st.session_state.chunks[i] for i in I[0] if i < len(st.session_state.chunks)]
