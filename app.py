@@ -42,7 +42,6 @@ def get_api_key():
 
 @st.cache_resource
 def load_embedder():
-    # Load the local embedding model
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 embedder = load_embedder()
@@ -51,11 +50,9 @@ index = faiss.IndexFlatL2(embedding_dim)
 tokenizer = tiktoken.get_encoding("cl100k_base")
 
 def num_tokens_from_string(string: str) -> int:
-    """Returns the number of tokens in a text string."""
     return len(tokenizer.encode(string))
 
 def chunk_text(text, max_tokens=250):
-    """Splits text into smaller chunks based on token count."""
     sentences = text.split(". ")
     current_chunk = []
     total_tokens = 0
@@ -68,7 +65,7 @@ def chunk_text(text, max_tokens=250):
             if current_chunk:
                 result_chunks.append(". ".join(current_chunk) + ("." if not current_chunk[-1].endswith(".") else ""))
             current_chunk = [sentence]
-            total_tokens = token_len
+            total_tokens = total_tokens
         else:
             current_chunk.append(sentence)
             total_tokens += token_len
@@ -77,7 +74,6 @@ def chunk_text(text, max_tokens=250):
     return result_chunks
 
 def extract_text_from_pdf(pdf_file):
-    """Extracts raw text from an uploaded PDF file."""
     doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
     text = ""
     for page in doc:
@@ -85,7 +81,6 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def index_uploaded_text(text):
-    """Chunks text, encodes it into vectors, and adds it to the FAISS index."""
     global index
     index = faiss.IndexFlatL2(embedding_dim)
     st.session_state.chunks = []
@@ -101,10 +96,7 @@ def index_uploaded_text(text):
 
     return len(chunks_list)
 
-# --- NEW CONTENT STARTING HERE ---
-
 def retrieve_chunks(query, top_k=5):
-    """Retrieves the most relevant text chunks for a given query."""
     if index.ntotal == 0:
         return []
     q_vector = embedder.encode([query])
@@ -112,7 +104,6 @@ def retrieve_chunks(query, top_k=5):
     return [st.session_state.chunks[i] for i in I[0] if i < len(st.session_state.chunks)]
 
 def build_prompt(system_prompt, context_chunks, question):
-    """Combines context and question into a single prompt for the LLM."""
     context = "\n\n".join(context_chunks)
     return f"""{system_prompt}
 Context:
@@ -122,7 +113,6 @@ Question:
 Answer: Please provide a comprehensive answer based only on the context provided."""
 
 def generate_answer(prompt):
-    """Sends the prompt to the Groq API and returns the generated answer."""
     api_key = get_api_key()
     if not api_key:
         return "API key is missing. Please set the GROQ_API_KEY environment variable or enter it in the sidebar."
@@ -151,10 +141,6 @@ def generate_answer(prompt):
             )
         query_time = time.time() - start_time
         st.session_state.last_query_time = f"{query_time:.2f} seconds"
-
-        if response.status_code == 401:
-            return "Authentication failed: Invalid or expired API key."
-        
         response.raise_for_status()
         response_json = response.json()
         answer = response_json["choices"][0]["message"]["content"]
@@ -162,3 +148,14 @@ def generate_answer(prompt):
         return answer
     except Exception as e:
         return f"Unexpected error: {str(e)}"
+
+# --- NEW CONTENT STARTING HERE ---
+
+def translate_text(text, target_language):
+    """Translates text using Google Translator."""
+    try:
+        with st.spinner(f"Translating to {target_language}..."):
+            return GoogleTranslator(source='auto', target=target_language).translate(text)
+    except Exception as e:
+        st.error(f"Translation failed: {str(e)}")
+        return text
