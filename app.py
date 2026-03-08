@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="Retrieval Augmented Generation",
     page_icon=".devcontainer/favicon.ico",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 def get_api_key():
@@ -175,7 +175,6 @@ def translate_text(text, target_language):
         return text
 
 
-# Streamlit UI
 st.title("📄 Retrieval Augmented Generation: Urdu PDF OCR, Translation & Q&A")
 st.markdown("Upload Urdu PDFs, extract text via OCR, translate to English, and ask questions in Urdu or English.")
 
@@ -191,9 +190,6 @@ with st.sidebar:
     )
     
     st.session_state["MODEL_CHOICE"] = model_choice
-    
-    # st.subheader("Debug Settings")
-    # st.session_state.debug_mode = st.checkbox("Show Debug Information", value=st.session_state.debug_mode)
     
     if st.session_state.last_query_time:
          st.subheader("About")
