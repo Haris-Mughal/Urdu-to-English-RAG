@@ -11,8 +11,6 @@ import requests
 from deep_translator import GoogleTranslator
 from gtts import gTTS
 import time
-import logging
-
 
 load_dotenv()
 
@@ -303,8 +301,6 @@ if submit_button and query:
                         translated = translate_text(answer, lang_code)
                         st.markdown(f"### Answer ({language}):")
                         st.write(translated)                            
-
-logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
 
 st.divider()
 st.caption("**RAG-Explorer** • Urdu PDF OCR, Translation & Q&A • Powered by Groq & Sentence Transformers")
